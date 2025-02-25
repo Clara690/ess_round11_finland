@@ -1,0 +1,85 @@
+---
+title: "The Correlation between Attitudes towards Immigrants and Voting Behavior"
+author: Yun-Tsz Tsai
+date-format: "MMMM DD, YYYY"
+format: pdf
+---
+# Introduction
+It is not unheard that one's party preference are highly associated with one's opinions on certain issues. Parties that are on the right end of the spectrum are more likely to be anti-immigrants while parties that are on the left end of the spectrum tend to have more open policy on immigrants. As a result, it will be reasonably to assume that if an individual has negative view on immigrants is more likely to support a party whose ideology aligns with this and vice versa.
+
+In this study, I will investigate the correlation between individuals' views on immigrants and their voting behavior with a focus on Finnish population. The hypothesis is formulated as follows,
+
+*Do peopel who have more negative views on immigrants more likely to vote for praties that are right-leaning?*
+
+The data being used in this study is from round 11 (2023/24) of European Social Suvery (ESS). 
+
+link to find the list of variables in this data set <https://ess.sikt.no/en/datafile/242aaa39-3bbb-40f5-98bf-bfb1ce53d8ef>
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+library(haven)
+
+# load the data
+ess2023_fi <- read_dta('./ESS11_fi.dta')
+
+# independent v = 'prtvtffi' which stands for party voted for in last election
+variables <- c('prtvtffi', 'imbgeco', 'gndr', 'edlvdfi', 'agea') # dtype = double
+ess2023_fi <- ess2023_fi %>% 
+                select(variables) %>% 
+                filter(complete.cases(.)) 
+
+# ess2023_fi$gndr <- factor(ess2023_fi$gndr, levels = c('Male', 'Female'))
+
+# remove missing values and convert some columns to factors
+ess2023_fi <- ess2023_fi %>% 
+  mutate(party = zap_missing(prtvtffi),
+         party = as_factor(party),
+         party = fct_lump_n(party, 3),
+         imbgeco = as.integer(imbgeco),
+         gndr = as_factor(gndr),
+         edlvdfi = zap_missing(edlvdfi),
+         # highly educated or not
+         edlvdfi = as_factor(ifelse(edlvdfi >= 9, 1, 0)), 
+         agea = as.integer(agea)) %>% 
+         filter(gndr != 'No answer')
+
+# relevel and set National Coaltion Party as a reference category
+ess2023_fi <- within(ess2023_fi, party <- relevel(
+  party, ref = 'The National Coalition Party'))
+
+```
+::: {.landscape}
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: 'Descriptive Statistics on Voter Arributes'
+#| label: tbl-descriptive
+
+library(modelsummary)
+library(kableExtra)
+# descriptive data on the sample
+ess2023_fi %>% 
+  mutate(group = case_when(
+    party ==  'The National Coalition Party' ~ 1,
+    party == 'Social Democratic Party' ~ 2,
+    party == 'True Finns' ~ 3,
+    party == 'Other' ~ 4
+  )) %>% 
+  mutate(group = factor(group, labels = c('NCP', 'SDP', 'TF', 'Other'))) %>% 
+  select(group, 
+         Sex = gndr,
+         Age = agea,
+         `Higher Education` = edlvdfi,
+         `Opinions on Immigrants` = imbgeco) %>%
+  datasummary_balance( Sex + Age + `Higher Education`+
+                        `Opinions on Immigrants` ~ group,
+                      data = .,
+                      notes = c('Source: European Social Survey Round 11',
+                                'Higher values in "Opinion on Immigrants"
+                                suggest more positive views.')) 
+```
+:::
