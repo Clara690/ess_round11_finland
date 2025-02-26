@@ -31,7 +31,6 @@ ess2023_fi <- ess2023_fi %>%
                 select(variables) %>% 
                 filter(complete.cases(.)) 
 
-# ess2023_fi$gndr <- factor(ess2023_fi$gndr, levels = c('Male', 'Female'))
 
 # remove missing values and convert some columns to factors
 ess2023_fi <- ess2023_fi %>% 
@@ -46,11 +45,12 @@ ess2023_fi <- ess2023_fi %>%
          agea = as.integer(agea)) %>% 
          filter(gndr != 'No answer')
 
-# relevel and set National Coaltion Party as a reference category
+# relevel and set National Coalition Party as a reference category
 ess2023_fi <- within(ess2023_fi, party <- relevel(
   party, ref = 'The National Coalition Party'))
 
 ```
+
 ::: {.landscape}
 ```{r}
 #| echo: false
@@ -58,7 +58,7 @@ ess2023_fi <- within(ess2023_fi, party <- relevel(
 #| warning: false
 #| tbl-cap: 'Descriptive Statistics on Voter Arributes'
 #| label: tbl-descriptive
-
+library(gtsummary)
 library(modelsummary)
 library(kableExtra)
 # descriptive data on the sample
@@ -75,11 +75,86 @@ ess2023_fi %>%
          Age = agea,
          `Higher Education` = edlvdfi,
          `Opinions on Immigrants` = imbgeco) %>%
-  datasummary_balance( Sex + Age + `Higher Education`+
-                        `Opinions on Immigrants` ~ group,
-                      data = .,
-                      notes = c('Source: European Social Survey Round 11',
-                                'Higher values in "Opinion on Immigrants"
-                                suggest more positive views.')) 
+  tbl_summary(by = group, include = c(Sex, Age, 
+                                      `Higher Education`, `Opinions on Immigrants`)) %>% 
+  add_overall() %>% 
+  remove_row_type(variables = Sex,
+                  type = 'level',
+                  level_value = 'No answer') %>% 
+   modify_footnote_header("Source: European Social Survey Round 11,
+                                 Higher values in *Opinion on Immigrants*
+                                 suggest more positive views.",
+                          , columns = all_stat_cols())
+
 ```
 :::
+
+::: {.landscape}
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: 'Odds Ratios from Logistic Regression Models of Party Choice'
+#| label: md-statistics
+library(nnet)
+library(broom)
+library(modelr)
+library(modelsummary)
+
+# estimation using multinomial logistic regression models
+ # model 1 with opinions on immigrants as the only idependent variable
+mod1 <- multinom(party ~ imbgeco, data = ess2023_fi, trace = FALSE)
+
+ # model 2 with opinons + demographic attributes
+mod2 <- multinom(party ~ imbgeco + gndr + edlvdfi + agea, data = ess2023_fi,
+                 trace = FALSE)
+# making a table
+models <- list(mod1, mod2)
+modelsummary(models, shape =  term ~ model + response,
+             fmt = 2,
+             statistic = 'conf.int',
+             exponentiate = TRUE,
+             gof_omit = 'RMSE')
+```
+:::
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: 'Goodness of Model Fit'
+#| label: md-fit
+library(lmtest)
+library(DescTools)
+library(gt)
+# model fit statistics
+lktest <- lrtest(mod1, mod2)
+# Negelkerke's pseuso's R^2
+pse_R1 <- round(PseudoR2(mod1, which = 'Nagelkerke'), 2)
+pse_R2 <- round(PseudoR2(mod2, which = 'Nagelkerke'), 2)
+# share of correct prediction
+ # model 1
+pred_mod1 <- predict(mod1, type = 'class')
+sc_mod1 <- (mean(ess2023_fi$party == pred_mod1)) *100
+ # model 2
+pred_mod2 <- predict(mod2, type = 'class')
+sc_mod2 <- (mean(ess2023_fi$party == pred_mod2)) *100
+
+# put the information into a table
+results <- tibble('term' = c('Likelihood Ratio Test', 
+                      'Pseuso R²', 
+                      'Share of Correct Prediction (%)'),
+                  'Model 1' = c(lktest$Chisq[1], pse_R1, sc_mod1),
+                  'Model 2' = c(lktest$Chisq[2], pse_R2, sc_mod2))
+results %>% 
+  gt() %>% 
+  fmt_number(
+    columns = everything(),
+    decimal = 1
+  ) %>% 
+  cols_label(
+    term = 'Metrics',
+    `Model 1` = 'Model 1',
+    `Model 2` = 'Model 2')
+```
+
