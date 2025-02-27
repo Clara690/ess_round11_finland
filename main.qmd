@@ -7,13 +7,12 @@ format: pdf
 # Introduction
 It is not unheard that one's party preference are highly associated with one's opinions on certain issues. Parties that are on the right end of the spectrum are more likely to be anti-immigrants while parties that are on the left end of the spectrum tend to have more open policy on immigrants. As a result, it will be reasonably to assume that if an individual has negative view on immigrants is more likely to support a party whose ideology aligns with this and vice versa.
 
-In this study, I will investigate the correlation between individuals' views on immigrants and their voting behavior with a focus on Finnish population. The hypothesis is formulated as follows,
+In this study, I will investigate the correlation between individuals' views on immigrants and their voting behavior with a focus on Finnish population using [round 11 of European Social Survey (ESS)](https://ess.sikt.no/en/study/412db4fe-c77a-4e98-8ea4-6c19007f551b). The hypothesis is formulated as follows,
 
-*Do peopel who have more negative views on immigrants more likely to vote for praties that are right-leaning?*
-
-The data being used in this study is from round 11 (2023/24) of European Social Suvery (ESS). 
-
-link to find the list of variables in this data set <https://ess.sikt.no/en/datafile/242aaa39-3bbb-40f5-98bf-bfb1ce53d8ef>
+  *Do peopel who have more negative views on immigrants more likely to*
+  *vote for praties that are right-leaning?*
+  
+I will employ multinomial regression models, where one utilize linear predictors and compare the results of reference category to other categories (therefore $\beta_1$ = 0), to verify my hypothesis. The main independent variable of interest is individuals' opinions on immigrants, and control variables are gender, higher education and age.
 
 ```{r}
 #| echo: false
@@ -50,6 +49,16 @@ ess2023_fi <- within(ess2023_fi, party <- relevel(
   party, ref = 'The National Coalition Party'))
 
 ```
+# Data
+There are 1165 respondents with complete answers on the criteria of interest in round 11 of ESS, and females make up for 51% of the sample. The age of respondents ranges between 18 and 89 with a mean of 56, among which individuals with higher education account for 45% of the sample.
+
+In the original dataset, there are a total of 16 parties. However, if we take into account the paliamentary election results in 2023 as well as the particalbility of modeling, it make more sense to include only major parties, namely *National Coalition Party (NCP)*, *Social Democratic Party (SDP)* and *True Finns (TF)*, and and tranform the rest to the category *Other*.
+  
+If we look at the independent variables seperately, the gender ratio of voters for True Finns is particularly skewed, with men making up for 66% of the voters. Besides, the average age of True Finns voters is realtively low ($\mu$ = 51), compared to the other two major parties. As for education, the disribution of voters for National Coalition Party is about 29% higher than that of the entire sample (58% and 45% respectively). Inviduals with higher education only account for 34% and 28% of the voters for Social Democratic Party and True Finns. 
+
+Finally, concerning our main independent variable - *Opinions on Immigrants",
+respondents were asked to answer on a 0 to 10 scale if they think *"Immigrants are good for the economy"*, and higher scores indicate more positive views on immigrants. There is almost no differences between the sample and NCP and SDP, while the average score for True Finns voters is lower than the other categories (see @tbl-descriptive for exact figures). 
+
 
 ::: {.landscape}
 ```{r}
@@ -82,12 +91,19 @@ ess2023_fi %>%
                   type = 'level',
                   level_value = 'No answer') %>% 
    modify_footnote_header("Source: European Social Survey Round 11,
-                                 Higher values in *Opinion on Immigrants*
+                                 Higher values in *Opinions on Immigrants*
                                  suggest more positive views.",
                           , columns = all_stat_cols())
 
 ```
 :::
+# Analysis Using Logistic Regression Models
+To see whether there is a correlation between one's opinion on immigrants and one's voting behavior, I divide the analysis into 2 phases. The main independent variable is coded from 0 to 10 as a numeric variable. Gender and parties are both categorical variables. For the former, *Male* is the reference category while for the latter *National Coalition Party*, which is one of the Big Three parties in Finland, is the reference categories. 
+Age is also a numeric variable and higher education is a binary variable with 1 = have a higher education degree and 0 = without a higher education degree.
+
+In the first round, I used *Opinions on Immigrants* as the only independent variable in the multinomial regression model. All of the estimates are at statiscally significant level, and the odds ratio of both SDP and TF are lower than 1, suggesting that the odds of individuals with more negative views on immigrants voting for NCP are lower. In other words, if one has negative opinion on immigrants, they are less likely to vote for NCP. 
+
+In the second round, other independent variables are included in the model. Similarily to previous results obtained from Model 1, all of the coefficeints are at statistically significant level. Interestingly, indidviduals with higher education are less likely to vote for NCP. The coefficient for *Opinions on Imiigrants* is higher than in Model 1, which implies that other things equal, the odds of an individual voting for TF are in fact higher. Another change that is worth noticing is that holding other variables constant, the odds of women voting for TF are only half of that of women voting for NCP. Age however, does not appear to have noticeable impact on one's voting behavior.
 
 ::: {.landscape}
 ```{r}
@@ -117,7 +133,10 @@ modelsummary(models, shape =  term ~ model + response,
              gof_omit = 'RMSE')
 ```
 :::
-
+## Goodness of model fit
+Although all the variables in the models seem to have extremely low p-values, it is important to bear in mind that we might still be far from capturing all the complexity of human nature. 
+Starting with a *Likelihood Ratio Test*, the performance of Model 2 is significantly better tham Model 1. This might come as no surprise as researchers have found that factors such as sex and education level are good predictor of one's political views. 
+However, when looking at the share of correct predictions, both models failed to predict more than half of the party choice, indicating that what might influence one's voting behavior still needs further investigation.
 ```{r}
 #| echo: false
 #| message: false
@@ -155,6 +174,57 @@ results %>%
   cols_label(
     term = 'Metrics',
     `Model 1` = 'Model 1',
-    `Model 2` = 'Model 2')
+    `Model 2` = 'Model 2') %>% 
+  tab_footnote('The Likelihood ratio test for Model 1 is not applicable as it is the most basic model in this analysis.\n*** P < 0.01') %>% 
+  text_transform(
+    locations = cells_body(
+      columns = `Model 2`,
+      rows = term == "Likelihood Ratio Test"
+    ),
+    fn = function(x) paste0(x, '***')
+  )
 ```
+# Predicted Probability
+@pred_graph illustrates the predicted probabilities of party choice of an average age men by education level. The trend for men and women(not shown in the graph) are similar but the contrast for men with higher education and without higher education is more distinctive. Regardless education level, it is obvious that if a men has more negative view on immigrants, they will favor True Finns more than other parties. In addition, men with a higher education degree seem to favor National Coalition Party more than Social Democratic Party. 
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-align: 'center'
+#| fig-cap-location: top
+#| fig-cap: 'Predictied Party Choice in 2023 Finnish Parliamentary Election'
+#| label: pred_graph
+library(marginaleffects)
+library(scales)
+# visualization of predicted prob of different parties by education level
+ # prepare new data
+grid_opnion <- expand_grid(gndr ='Male',
+                           edlvdfi = as_factor(c(0, 1)),
+                           agea = mean(ess2023_fi$agea),
+                           imbgeco = seq(0, 10, 0.5))
 
+ # plot
+predictions(mod2, newdata = grid_opnion) %>% 
+  mutate(gender = if_else(gndr == 1, "Female", "Male")) %>% 
+ggplot(aes(imbgeco, estimate, color = group)) +
+  theme_light() +
+  geom_line(linewidth = 0.5) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, group = group,
+                  fill = group), 
+              alpha = 0.1, color = NA) +
+  facet_wrap(vars(edlvdfi, gndr)) +
+  scale_y_continuous(breaks = seq(0, 1, .1), 
+                     labels = percent_format(accuracy = 1)) +
+  scale_x_continuous(breaks = seq(0, 10)) +
+  labs(subtitle = "Estimates from Multinomial Logistic Regression",
+       y = "Predicted probabilities",
+       x = 'Opnions on Immigrants',
+       color = 'Party',
+       caption = 'Data from ESS 2023')
+
+```
+# Conclusion
+At first glance, opinions on immigrants seem to be able to explain much on one's voting behavior, and there is no denying that negative views on immigrants account for much why one votes for right-wing parties. However, once we add more variables into the model, we actually see a decrease in the impact of negative views on immigrants on one's voting behavior. This suggest that more studies need to be done to distengle the complexity of human behavior.
+
+# Reference 
+[European Social Survey European Research Infrastructure (ESS ERIC). (2024). ESS11 integrated file, edition 2.0 [Data set]. Sikt - Norwegian Agency for Shared Services in Education and Research. https://doi.org/10.21338/ess11e02_0](https://doi.org/10.21338/ess11e02_0)
