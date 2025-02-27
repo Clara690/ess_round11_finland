@@ -30,7 +30,6 @@ ess2023_fi <- ess2023_fi %>%
                 select(variables) %>% 
                 filter(complete.cases(.)) 
 
-
 # remove missing values and convert some columns to factors
 ess2023_fi <- ess2023_fi %>% 
   mutate(party = zap_missing(prtvtffi),
@@ -48,9 +47,11 @@ ess2023_fi <- ess2023_fi %>%
 ess2023_fi <- within(ess2023_fi, party <- relevel(
   party, ref = 'The National Coalition Party'))
 
+ess2023_fi$gndr <- droplevels(ess2023_fi$gndr)
+
 ```
 # Data
-There are 1165 respondents with complete answers on the criteria of interest in round 11 of ESS, and females make up for 51% of the sample. The age of respondents ranges between 18 and 89 with a mean of 56, among which individuals with higher education account for 45% of the sample.
+The original data has 1563 respondents but not all of them are complete.After removing missing values there are 1165 respondents with complete answers on the criteria of interest in round 11 of ESS, and females make up for 51% of the sample. The age of respondents ranges between 18 and 89 with a mean of 56, among which individuals with higher education account for 45% of the sample.
 
 In the original dataset, there are a total of 16 parties. However, if we take into account the paliamentary election results in 2023 as well as the particalbility of modeling, it make more sense to include only major parties, namely *National Coalition Party (NCP)*, *Social Democratic Party (SDP)* and *True Finns (TF)*, and and tranform the rest to the category *Other*.
   
@@ -67,6 +68,7 @@ respondents were asked to answer on a 0 to 10 scale if they think *"Immigrants a
 #| warning: false
 #| tbl-cap: 'Descriptive Statistics on Voter Arributes'
 #| label: tbl-descriptive
+
 library(gtsummary)
 library(modelsummary)
 library(kableExtra)
@@ -87,13 +89,14 @@ ess2023_fi %>%
   tbl_summary(by = group, include = c(Sex, Age, 
                                       `Higher Education`, `Opinions on Immigrants`)) %>% 
   add_overall() %>% 
-  remove_row_type(variables = Sex,
-                  type = 'level',
-                  level_value = 'No answer') %>% 
    modify_footnote_header("Source: European Social Survey Round 11,
                                  Higher values in *Opinions on Immigrants*
                                  suggest more positive views.",
                           , columns = all_stat_cols())
+
+ # remove_row_type(variables = Sex,
+ #                  type = 'level',
+ #                  level_value = 'No answer') %>% 
 
 ```
 :::
@@ -110,12 +113,14 @@ In the second round, other independent variables are included in the model. Simi
 #| echo: false
 #| message: false
 #| warning: false
+#| tbl-colwidths: [60, 60, 60, 60, 60, 60]
 #| tbl-cap: 'Odds Ratios from Logistic Regression Models of Party Choice'
-#| label: md-statistics
+#| label: tbl-md-statistics
 library(nnet)
 library(broom)
 library(modelr)
 library(modelsummary)
+library(kableExtra)
 
 # estimation using multinomial logistic regression models
  # model 1 with opinions on immigrants as the only idependent variable
@@ -130,11 +135,13 @@ modelsummary(models, shape =  term ~ model + response,
              fmt = 2,
              statistic = 'conf.int',
              exponentiate = TRUE,
+             coef_rename = c('Intercept', 'Opinions on Immigrants', 'Female'
+                             , 'High Edu', 'Age'),
              gof_omit = 'RMSE')
 ```
 :::
 ## Goodness of model fit
-Although all the variables in the models seem to have extremely low p-values, it is important to bear in mind that we might still be far from capturing all the complexity of human nature. 
+Although all the variables in the models seem to have extremely low p-values, it is important to bear in mind that we might still be far from capturing all the complexity of human nature. See @tbl-md-fit for a full evaluation on goodness of model fit.
 Starting with a *Likelihood Ratio Test*, the performance of Model 2 is significantly better tham Model 1. This might come as no surprise as researchers have found that factors such as sex and education level are good predictor of one's political views. 
 However, when looking at the share of correct predictions, both models failed to predict more than half of the party choice, indicating that what might influence one's voting behavior still needs further investigation.
 ```{r}
@@ -142,7 +149,8 @@ However, when looking at the share of correct predictions, both models failed to
 #| message: false
 #| warning: false
 #| tbl-cap: 'Goodness of Model Fit'
-#| label: md-fit
+#| label: tbl-md-fit
+
 library(lmtest)
 library(DescTools)
 library(gt)
@@ -185,7 +193,8 @@ results %>%
   )
 ```
 # Predicted Probability
-@pred_graph illustrates the predicted probabilities of party choice of an average age men by education level. The trend for men and women(not shown in the graph) are similar but the contrast for men with higher education and without higher education is more distinctive. Regardless education level, it is obvious that if a men has more negative view on immigrants, they will favor True Finns more than other parties. In addition, men with a higher education degree seem to favor National Coalition Party more than Social Democratic Party. 
+
+@fig-pred-graph illustrates the predicted probabilities of party choice of an average age men by education level. The trend for men and women(not shown in the graph) are similar but the contrast for men with higher education and without higher education is more distinctive. Regardless education level, it is obvious that if a men has more negative view on immigrants, they will favor True Finns more than other parties. In addition, men with a higher education degree seem to favor National Coalition Party more than Social Democratic Party. 
 ```{r}
 #| echo: false
 #| message: false
@@ -193,7 +202,8 @@ results %>%
 #| fig-align: 'center'
 #| fig-cap-location: top
 #| fig-cap: 'Predictied Party Choice in 2023 Finnish Parliamentary Election'
-#| label: pred_graph
+#| label: fig-pred-graph
+
 library(marginaleffects)
 library(scales)
 # visualization of predicted prob of different parties by education level
@@ -202,6 +212,18 @@ grid_opnion <- expand_grid(gndr ='Male',
                            edlvdfi = as_factor(c(0, 1)),
                            agea = mean(ess2023_fi$agea),
                            imbgeco = seq(0, 10, 0.5))
+
+ # label fransformer
+education_labeller <- function(lst){
+  for(i in 1:length(lst)){
+  if(lst[i] == 0){
+    return('Without Higher Education')
+  } 
+  else
+    {
+    return('With Higher Education')
+  }
+}}
 
  # plot
 predictions(mod2, newdata = grid_opnion) %>% 
@@ -212,7 +234,7 @@ ggplot(aes(imbgeco, estimate, color = group)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high, group = group,
                   fill = group), 
               alpha = 0.1, color = NA) +
-  facet_wrap(vars(edlvdfi, gndr)) +
+  facet_wrap(vars(edlvdfi), labeller = as_labeller(c(`0` = "Without", `1` = "With Higher Education"))) +
   scale_y_continuous(breaks = seq(0, 1, .1), 
                      labels = percent_format(accuracy = 1)) +
   scale_x_continuous(breaks = seq(0, 10)) +
@@ -220,7 +242,8 @@ ggplot(aes(imbgeco, estimate, color = group)) +
        y = "Predicted probabilities",
        x = 'Opnions on Immigrants',
        color = 'Party',
-       caption = 'Data from ESS 2023')
+       caption = 'Data from ESS 2023') +
+  guides(fill = guide_legend(title = "Party"))
 
 ```
 # Conclusion
